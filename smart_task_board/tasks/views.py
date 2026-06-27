@@ -58,6 +58,7 @@ def add_task(request):
 
         # Rule 2: If 3 tasks added within 2 minutes, 4th gets locked for 5 minutes
         is_locked_task = recent_count == 3
+        # is_locked_task = recent_count >= 3
         locked_until = now + timedelta(minutes=5) if is_locked_task else None
 
         # Rule 3: Odd minute tasks have a deadline
@@ -102,20 +103,19 @@ def complete_task(request, task_id):
     task.refresh_from_db()
 
     if task.status == 'completed':
-        return JsonResponse({'success': False, 'error': 'Task already completed.'})
+        return JsonResponse({'success': False, 'hint': '✨ This journey has already reached its end.'})
 
     if task.status == 'locked':
         secs = task.seconds_until_unlock()
         return JsonResponse({
             'success': False,
-            'error': f'Task is locked. Unlocks in {secs}s.',
             'hint': '🔒 The task sleeps in an iron cage — patience is your only key.'
         })
 
     if task.status == 'expired':
         return JsonResponse({
             'success': False,
-            'error': 'Task has expired.',
+            # 'error': 'Task has expired.',
             'hint': '⏳ Time dissolved before the deed was done.'
         })
 
@@ -129,34 +129,52 @@ def complete_task(request, task_id):
                 'hint': '⏳ The hourglass ran dry before the sand could be gathered.'
             })
 
-    # Rule 1: High priority cannot complete before at least one Low priority task
+    # ── Rule 1: High priority blocked until ≥1 Low task completed ─────────────
     if task.priority == 'high':
-        low_completed = Task.objects.filter(priority='low', status='completed').exists()
+        low_completed = Task.objects.filter(
+            priority='low',
+            status='completed'
+        ).exists()
+
         if not low_completed:
             task.completion_attempts += 1
             task.save(update_fields=['completion_attempts'])
+
             return JsonResponse({
                 'success': False,
-                'error': 'Cannot complete.',
-                'hint': f'🌑 {get_cryptic_hint(task)} [The lowly must rise before the mighty can fall.]'
+                'hint': f'🌀 {get_cryptic_hint(task)}'
             })
 
-    # Rule 4: Hidden refusal logic — based on title length + attempts + priority hash
-    refusal_seed = (len(task.title) * task.estimated_time + task.completion_attempts) % 7
-    priority_weight = {'low': 1, 'medium': 2, 'high': 3}[task.priority]
+   # Rule 4: Hidden refusal logic
+    refusal_seed = (
+        len(task.title) * task.estimated_time +
+        task.completion_attempts
+    ) % 7
+
+    priority_weight = {
+        'low': 1,
+        'medium': 2,
+        'high': 3
+    }[task.priority]
+
     if refusal_seed == priority_weight and task.completion_attempts < 3:
         task.completion_attempts += 1
         task.save(update_fields=['completion_attempts'])
+
         return JsonResponse({
             'success': False,
-            'error': 'Task refused.',
             'hint': f'🌀 {get_cryptic_hint(task)}'
         })
 
+    # If hidden logic does NOT trigger, complete the task
     task.status = 'completed'
     task.save(update_fields=['status'])
 
-    return JsonResponse({'success': True, 'message': '✅ Task completed!', 'task': serialize_task(task)})
+    return JsonResponse({
+        'success': True,
+        'message': '✅ Task completed!',
+        'task': serialize_task(task)
+    })
 
 
 @csrf_exempt
