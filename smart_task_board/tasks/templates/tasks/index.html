@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Smart Task Board</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --card: #22263a;
+    --border: #2e3350;
+    --accent: #6c63ff;
+    --accent2: #ff6584;
+    --green: #43e97b;
+    --yellow: #f7b731;
+    --red: #fc5c7d;
+    --blue: #4facfe;
+    --text: #e8eaf6;
+    --muted: #8892b0;
+    --low: #43e97b;
+    --medium: #f7b731;
+    --high: #fc5c7d;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+
+  header {
+    background: linear-gradient(135deg, #1a1d27 0%, #22263a 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 32px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  header h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.5px; }
+  header h1 span { color: var(--accent); }
+  .badge { background: var(--accent); color: #fff; font-size: 0.7rem; padding: 3px 8px; border-radius: 99px; font-weight: 600; }
+
+  .main { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+
+  /* Rules Panel */
+  .rules-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 28px;
+  }
+  .rules-panel h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 14px; }
+  .rules-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+  .rule-item {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 0.82rem;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  .rule-item strong { color: var(--text); display: block; margin-bottom: 4px; }
+
+  /* Form */
+  .form-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 28px;
+  }
+  .form-card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 18px; color: var(--text); }
+  .form-grid { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 12px; align-items: end; }
+  .form-group label { display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .form-group input, .form-group select {
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .form-group input:focus, .form-group select:focus { border-color: var(--accent); }
+  .btn {
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #7c73ff; transform: translateY(-1px); }
+  .btn-sm { padding: 6px 12px; font-size: 0.78rem; border-radius: 6px; }
+  .btn-success { background: rgba(67,233,123,0.15); color: var(--green); border: 1px solid rgba(67,233,123,0.3); }
+  .btn-success:hover { background: rgba(67,233,123,0.25); }
+  .btn-danger { background: rgba(252,92,125,0.12); color: var(--red); border: 1px solid rgba(252,92,125,0.25); }
+  .btn-danger:hover { background: rgba(252,92,125,0.22); }
+
+  /* Toast */
+  #toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+  .toast {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    border-radius: 10px;
+    padding: 14px 18px;
+    min-width: 280px;
+    max-width: 380px;
+    font-size: 0.85rem;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    animation: slideIn 0.3s ease;
+  }
+  .toast.success { border-left-color: var(--green); }
+  .toast.error { border-left-color: var(--red); }
+  .toast.warning { border-left-color: var(--yellow); }
+  .toast .hint { color: var(--accent2); font-style: italic; margin-top: 6px; font-size: 0.8rem; }
+  @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+  /* Board */
+  .board-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .board-header h2 { font-size: 1rem; font-weight: 600; }
+  .task-count { color: var(--muted); font-size: 0.85rem; }
+
+  /* Filters */
+  .filters { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+  .filter-btn {
+    padding: 6px 14px;
+    border-radius: 99px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .filter-btn.active, .filter-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  /* Task Grid */
+  #task-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+
+  .task-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    position: relative;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .task-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+  .task-card.status-locked { border-color: rgba(247,183,49,0.4); background: linear-gradient(135deg, #22263a, #2a2510); }
+  .task-card.status-completed { opacity: 0.55; }
+  .task-card.status-expired { border-color: rgba(252,92,125,0.3); }
+  .task-card.status-failed { border-color: rgba(252,92,125,0.2); }
+
+  .priority-bar {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 4px;
+    border-radius: 12px 0 0 12px;
+  }
+  .priority-low .priority-bar { background: var(--low); }
+  .priority-medium .priority-bar { background: var(--medium); }
+  .priority-high .priority-bar { background: var(--high); }
+
+  .task-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 12px; padding-left: 8px; }
+  .task-title { font-size: 0.95rem; font-weight: 600; line-height: 1.4; }
+  .task-title.completed { text-decoration: line-through; color: var(--muted); }
+
+  .task-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; padding-left: 8px; }
+  .chip {
+    font-size: 0.72rem;
+    padding: 3px 9px;
+    border-radius: 99px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+  .chip-low { background: rgba(67,233,123,0.15); color: var(--low); }
+  .chip-medium { background: rgba(247,183,49,0.15); color: var(--medium); }
+  .chip-high { background: rgba(252,92,125,0.15); color: var(--high); }
+  .chip-status-pending { background: rgba(79,172,254,0.12); color: var(--blue); }
+  .chip-status-completed { background: rgba(67,233,123,0.12); color: var(--green); }
+  .chip-status-locked { background: rgba(247,183,49,0.12); color: var(--yellow); }
+  .chip-status-failed { background: rgba(252,92,125,0.12); color: var(--red); }
+  .chip-status-expired { background: rgba(252,92,125,0.08); color: var(--red); }
+  .chip-odd { background: rgba(108,99,255,0.15); color: var(--accent); }
+
+  .task-info { font-size: 0.78rem; color: var(--muted); padding-left: 8px; margin-bottom: 12px; }
+  .task-info span { display: inline-block; margin-right: 12px; }
+
+  .countdown {
+    background: rgba(247,183,49,0.08);
+    border: 1px solid rgba(247,183,49,0.2);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.78rem;
+    color: var(--yellow);
+    margin-bottom: 12px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .deadline-countdown {
+    background: rgba(252,92,125,0.08);
+    border: 1px solid rgba(252,92,125,0.2);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.78rem;
+    color: var(--red);
+    margin-bottom: 12px;
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  .task-actions { display: flex; gap: 8px; padding-left: 8px; }
+
+  .empty-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+  }
+  .empty-state .icon { font-size: 3rem; margin-bottom: 12px; }
+  .empty-state p { font-size: 0.9rem; }
+
+  @media (max-width: 600px) {
+    .form-grid { grid-template-columns: 1fr 1fr; }
+    .form-grid .btn { grid-column: 1 / -1; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Smart <span>Task Board</span></h1>
+  </div>
+  <span class="badge">LIVE</span>
+</header>
+
+<div class="main">
+
+  <!-- Rules -->
+  <div class="rules-panel">
+    <h2>⚡ Active Rules</h2>
+    <div class="rules-grid">
+      <div class="rule-item"><strong>🔴 Rule 1 — Priority Gate</strong>A High priority task cannot complete until at least one Low priority task is done.</div>
+      <div class="rule-item"><strong>🔒 Rule 2 — Rapid Lock</strong>Add 3 tasks in under 2 minutes and the 4th gets locked for 5 minutes.</div>
+      <div class="rule-item"><strong>⏳ Rule 3 — Odd Minute Deadline</strong>Tasks created at odd clock-minutes must be completed within their estimated time.</div>
+      <div class="rule-item"><strong>🌀 Rule 4 — Hidden Refusal</strong>A task may mysteriously refuse to complete. Retry, or heed the cryptic hint.</div>
+    </div>
+  </div>
+
+  <!-- Add Task Form -->
+  <div class="form-card">
+    <h2>➕ Add New Task</h2>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Task Title</label>
+        <input type="text" id="task-title" placeholder="Enter task title..." />
+      </div>
+      <div class="form-group">
+        <label>Priority</label>
+        <select id="task-priority">
+          <option value="low">🟢 Low</option>
+          <option value="medium" selected>🟡 Medium</option>
+          <option value="high">🔴 High</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Est. Time (mins)</label>
+        <input type="number" id="task-time" placeholder="30" min="1" value="30" />
+      </div>
+      <button class="btn btn-primary" onclick="addTask()">Add Task</button>
+    </div>
+  </div>
+
+  <!-- Board -->
+  <div class="board-header">
+    <h2>📋 Task Board</h2>
+    <span class="task-count" id="task-count">Loading…</span>
+  </div>
+
+  <div class="filters">
+    <button class="filter-btn active" onclick="setFilter('all', this)">All</button>
+    <button class="filter-btn" onclick="setFilter('pending', this)">Pending</button>
+    <button class="filter-btn" onclick="setFilter('locked', this)">Locked</button>
+    <button class="filter-btn" onclick="setFilter('completed', this)">Completed</button>
+    <button class="filter-btn" onclick="setFilter('expired', this)">Expired</button>
+    <button class="filter-btn" onclick="setFilter('failed', this)">Failed</button>
+  </div>
+
+  <div id="task-grid"></div>
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+let allTasks = [];
+let currentFilter = 'all';
+let countdownIntervals = {};
+
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let c of cookies) {
+      c = c.trim();
+      if (c.startsWith(name + '=')) {
+        cookieValue = decodeURIComponent(c.slice(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
+function showToast(message, type = 'info', hint = null) {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `<div>${message}</div>${hint ? `<div class="hint">${hint}</div>` : ''}`;
+  container.appendChild(toast);
+  setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.4s'; setTimeout(() => toast.remove(), 400); }, 4000);
+}
+
+async function addTask() {
+  const title = document.getElementById('task-title').value.trim();
+  const priority = document.getElementById('task-priority').value;
+  const estimated_time = parseInt(document.getElementById('task-time').value);
+
+  if (!title) { showToast('Please enter a task title.', 'error'); return; }
+  if (!estimated_time || estimated_time < 1) { showToast('Please enter a valid estimated time.', 'error'); return; }
+
+  const res = await fetch('/api/tasks/add/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+    body: JSON.stringify({ title, priority, estimated_time })
+  });
+  const data = await res.json();
+
+  if (data.success) {
+    showToast(data.message, data.task.status === 'locked' ? 'warning' : 'success');
+    document.getElementById('task-title').value = '';
+    document.getElementById('task-time').value = '30';
+    loadTasks();
+  } else {
+    showToast(data.error || 'Failed to add task.', 'error');
+  }
+}
+
+async function completeTask(id) {
+  const res = await fetch(`/api/tasks/${id}/complete/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCookie('csrftoken') }
+  });
+  const data = await res.json();
+
+  if (data.success) {
+    showToast(data.message, 'success');
+    loadTasks();
+  } else {
+    showToast(data.error || 'Cannot complete.', 'error', data.hint || null);
+    loadTasks();
+  }
+}
+
+async function deleteTask(id) {
+  if (!confirm('Delete this task?')) return;
+  await fetch(`/api/tasks/${id}/delete/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCookie('csrftoken') }
+  });
+  loadTasks();
+}
+
+async function loadTasks() {
+  const res = await fetch('/api/tasks/');
+  const data = await res.json();
+  allTasks = data.tasks;
+  renderBoard();
+}
+
+function setFilter(filter, btn) {
+  currentFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderBoard();
+}
+
+function formatTime(iso) {
+  const d = new Date(iso);
+  return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+function formatCountdown(secs) {
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+function renderBoard() {
+  const grid = document.getElementById('task-grid');
+  // Clear old intervals
+  Object.values(countdownIntervals).forEach(clearInterval);
+  countdownIntervals = {};
+
+  let tasks = currentFilter === 'all' ? allTasks : allTasks.filter(t => t.status === currentFilter);
+
+  document.getElementById('task-count').textContent = `${tasks.length} task${tasks.length !== 1 ? 's' : ''}`;
+
+  if (tasks.length === 0) {
+    grid.innerHTML = `<div class="empty-state"><div class="icon">🗂️</div><p>No tasks found. Add one above!</p></div>`;
+    return;
+  }
+
+  grid.innerHTML = tasks.map(t => {
+    const isCompleted = t.status === 'completed';
+    const isLocked = t.status === 'locked';
+    const isExpired = t.status === 'expired';
+    const canComplete = t.status === 'pending';
+
+    let countdownHTML = '';
+    if (isLocked && t.seconds_until_unlock > 0) {
+      countdownHTML = `<div class="countdown" id="lock-countdown-${t.id}">🔒 Unlocks in <strong id="lock-timer-${t.id}">${formatCountdown(t.seconds_until_unlock)}</strong></div>`;
+    }
+    if (t.is_odd_minute_task && t.deadline && canComplete && t.seconds_until_deadline > 0) {
+      countdownHTML += `<div class="deadline-countdown" id="dl-countdown-${t.id}">⏳ Deadline in <strong id="dl-timer-${t.id}">${formatCountdown(t.seconds_until_deadline)}</strong></div>`;
+    }
+
+    return `
+    <div class="task-card status-${t.status} priority-${t.priority}" id="card-${t.id}">
+      <div class="priority-bar"></div>
+      <div class="task-header">
+        <div class="task-title ${isCompleted ? 'completed' : ''}">${escHtml(t.title)}</div>
+      </div>
+      <div class="task-meta">
+        <span class="chip chip-${t.priority}">${t.priority.toUpperCase()}</span>
+        <span class="chip chip-status-${t.status}">${t.status.toUpperCase()}</span>
+        ${t.is_odd_minute_task ? '<span class="chip chip-odd">⏱ ODD MIN</span>' : ''}
+      </div>
+      <div class="task-info">
+        <span>⏱ ${t.estimated_time} min</span>
+        <span>🕐 ${formatTime(t.created_at)}</span>
+        ${t.completion_attempts > 0 ? `<span>🔄 ${t.completion_attempts} attempt${t.completion_attempts > 1 ? 's' : ''}</span>` : ''}
+      </div>
+      ${countdownHTML}
+      <div class="task-actions">
+        ${canComplete ? `<button class="btn btn-sm btn-success" onclick="completeTask(${t.id})">✔ Complete</button>` : ''}
+        <button class="btn btn-sm btn-danger" onclick="deleteTask(${t.id})">🗑 Delete</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Start live countdowns
+  tasks.forEach(t => {
+    if (t.status === 'locked' && t.seconds_until_unlock > 0) {
+      let secs = t.seconds_until_unlock;
+      countdownIntervals[`lock-${t.id}`] = setInterval(() => {
+        secs--;
+        const el = document.getElementById(`lock-timer-${t.id}`);
+        if (secs <= 0) {
+          clearInterval(countdownIntervals[`lock-${t.id}`]);
+          loadTasks();
+        } else if (el) {
+          el.textContent = formatCountdown(secs);
+        }
+      }, 1000);
+    }
+    if (t.is_odd_minute_task && t.status === 'pending' && t.seconds_until_deadline > 0) {
+      let secs = t.seconds_until_deadline;
+      countdownIntervals[`dl-${t.id}`] = setInterval(() => {
+        secs--;
+        const el = document.getElementById(`dl-timer-${t.id}`);
+        if (secs <= 0) {
+          clearInterval(countdownIntervals[`dl-${t.id}`]);
+          loadTasks();
+        } else if (el) {
+          el.textContent = formatCountdown(secs);
+        }
+      }, 1000);
+    }
+  });
+}
+
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+document.getElementById('task-title').addEventListener('keydown', e => { if (e.key === 'Enter') addTask(); });
+
+// Load tasks on start and poll every 15s
+loadTasks();
+setInterval(loadTasks, 15000);
+</script>
+</body>
+</html>
