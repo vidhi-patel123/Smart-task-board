@@ -1,13 +1,18 @@
 from django.db import models
 from django.utils import timezone
 
+class Priority(models.Model):
+    name = models.CharField(max_length=25, unique=True)
+
+    def __str__(self):
+        return self.name
 
 class Task(models.Model):
-    PRIORITY_CHOICES = [
-        ('low', 'Low'),
-        ('medium', 'Medium'),
-        ('high', 'High'),
-    ]
+    # PRIORITY_CHOICES = [
+    #     ('low', 'Low'),
+    #     ('medium', 'Medium'),
+    #     ('high', 'High'),
+    # ]
 
     STATUS_CHOICES = [
         ('pending', 'Pending'),
@@ -18,7 +23,7 @@ class Task(models.Model):
     ]
 
     title = models.CharField(max_length=255)
-    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='medium')
+    priority = models.ForeignKey(Priority, on_delete=models.CASCADE, related_name='tasks')
     estimated_time = models.PositiveIntegerField(help_text="Estimated time in minutes")
     created_at = models.DateTimeField(default=timezone.now)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')

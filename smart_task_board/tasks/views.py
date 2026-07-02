@@ -6,7 +6,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 import json
 from datetime import timedelta
-from .models import Task
+from .models import Task, Priority
 
 CRYPTIC_HINTS = [
     "The stars are not aligned for this task.",
@@ -19,8 +19,17 @@ CRYPTIC_HINTS = [
     "Beware the second attempt — it knows your name.",
 ]
 
+# priority = Priority.objects.get(name="high")
+
+# task.objects.create(
+#     title = "Django project",
+#     priority=priority,
+#     estimated_time=30
+# )
+
 
 def get_cryptic_hint(task):
+    # converts task properties into an MD5 hash, select a consistent cryptic message
     seed = f"{task.id}{task.title}{task.completion_attempts}"
     idx = int(hashlib.md5(seed.encode()).hexdigest(), 16) % len(CRYPTIC_HINTS)
     return CRYPTIC_HINTS[idx]
@@ -36,21 +45,37 @@ def index(request):
     return render(request, 'tasks/index.html', {'tasks': tasks})
 
 
+
 @csrf_exempt
 @require_POST
 def add_task(request):
     try:
         data = json.loads(request.body)
+
         title = data.get('title', '').strip()
-        priority = data.get('priority', 'medium')
+        priority_name = data.get('priority', 'medium')
         estimated_time = int(data.get('estimated_time', 30))
 
         if not title:
-            return JsonResponse({'success': False, 'error': 'Title is required.'})
-        if priority not in ['low', 'medium', 'high']:
-            return JsonResponse({'success': False, 'error': 'Invalid priority.'})
+            return JsonResponse({
+                'success': False,
+                'error': 'Title is required.'
+            })
+
+        if priority_name not in ['low', 'medium', 'high']:
+            return JsonResponse({
+                'success': False,
+                'error': 'Invalid priority.'
+            })
+
         if estimated_time <= 0:
-            return JsonResponse({'success': False, 'error': 'Estimated time must be positive.'})
+            return JsonResponse({
+                'success': False,
+                'error': 'Estimated time must be positive.'
+            })
+
+        # Convert string to Priority instance
+        priority = Priority.objects.get(name=priority_name)
 
         now = timezone.now()
         two_mins_ago = now - timedelta(minutes=2)
@@ -68,7 +93,7 @@ def add_task(request):
 
         task = Task.objects.create(
             title=title,
-            priority=priority,
+            priority=priority,  # Priority object, not string
             estimated_time=estimated_time,
             created_at=now,
             status='locked' if is_locked_task else 'pending',
@@ -130,9 +155,9 @@ def complete_task(request, task_id):
             })
 
     # ── Rule 1: High priority blocked until ≥1 Low task completed ─────────────
-    if task.priority == 'high':
+    if task.priority.name == 'high':
         low_completed = Task.objects.filter(
-            priority='low',
+            priority_name='low',
             status='completed'
         ).exists()
 
@@ -155,7 +180,7 @@ def complete_task(request, task_id):
         'low': 1,
         'medium': 2,
         'high': 3
-    }[task.priority]
+    }[task.priority.name]
 
     if refusal_seed == priority_weight and task.completion_attempts < 3:
         task.completion_attempts += 1
@@ -175,6 +200,8 @@ def complete_task(request, task_id):
         'message': '✅ Task completed!',
         'task': serialize_task(task)
     })
+
+
 
 
 @csrf_exempt
@@ -208,7 +235,7 @@ def serialize_task(task):
     return {
         'id': task.id,
         'title': task.title,
-        'priority': task.priority,
+        'priority': task.priority.name,
         'estimated_time': task.estimated_time,
         'created_at': task.created_at.isoformat(),
         'status': task.status,
